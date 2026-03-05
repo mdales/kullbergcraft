@@ -1,0 +1,6 @@
+requests
+gdal[numpy]
+yirgacheffe
+juju
+amulet
+snakemake
