@@ -220,8 +220,14 @@ def place_beacon(chunk, x, y, z):
 
     # Place 3x3 base at y-1 (underground)
     for dx in [-1, 0, 1]:
+        xpos = x + dx
+        if xpos < 0 or xpos > 15:
+            continue
         for dz in [-1, 0, 1]:
-            chunk.set_block(iron_block, x + dx, y - 1, z + dz)
+            zpos = z + dz
+            if zpos < 0 or zpos > 15:
+                continue
+            chunk.set_block(iron_block, xpos, y - 1, zpos)
 
     # Place beacon on top (visible at ground level)
     chunk.set_block(beacon, x, y, z)

@@ -6,3 +6,5 @@ amulet
 snakemake
 snakemake_argparse_bridge
 pandas
+git+https://github.com/0xTiger/anvil-parser2.git@91a7eda55f0fb55a948d1072896430c29d906809#egg=anvil_parser2
+nbtlib
