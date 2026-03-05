@@ -4,3 +4,5 @@ yirgacheffe
 juju
 amulet
 snakemake
+snakemake_argparse_bridge
+pandas
