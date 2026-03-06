@@ -8,6 +8,7 @@ def refined_nmd(
     dem_path: Path,
     lcc_path: Path,
     lakes_path: Path,
+    roads_path: Path,
     cameras_path: Path,
     output_path: Path,
 ) -> None:
@@ -15,16 +16,19 @@ def refined_nmd(
         # yg.read_rasters(dem_path.glob("*.tif")) as dem,
         yg.read_raster(lcc_path) as lcc,
         yg.read_raster(lakes_path) as lakes,
+        yg.read_shape_like(roads_path, lcc) as roads,
         yg.read_shape_like(cameras_path, lcc) as cameras,
     ):
         lcc_without_water_with_lakes = yg.where(lakes == 0, lcc, 61)
-        lcc_without_water_with_lakes_and_cameras = yg.where(cameras != 0, 200, lcc_without_water_with_lakes)
-        lcc_without_water_with_lakes_and_cameras.to_geotiff(output_path)
+        lcc_without_water_with_lakes_and_roads = yg.where(roads == 0, lcc_without_water_with_lakes, 53)
+        lcc_without_water_with_lakes_and_and_roads_cameras = yg.where(cameras != 0, 200, lcc_without_water_with_lakes_and_roads)
+        lcc_without_water_with_lakes_and_and_roads_cameras.to_geotiff(output_path)
 
 @snakemake_compatible(mapping={
     "dem_path": "input.dem",
     "lcc_path": "input.lcc",
     "lakes_path": "input.lakes",
+    "roads_path": "input.roads",
     "cameras_path": "input.cameras",
     "output_path": "output[0]",
 })
@@ -52,6 +56,13 @@ def main() -> None:
         dest='lakes_path',
     )
     parser.add_argument(
+        '--roads',
+        type=Path,
+        help='roads geojson',
+        required=True,
+        dest="roads_path",
+    )
+    parser.add_argument(
         '--cameras',
         type=Path,
         help='Cameras point file',
@@ -70,6 +81,7 @@ def main() -> None:
         args.dem_path,
         args.lcc_path,
         args.lakes_path,
+        args.roads_path,
         args.cameras_path,
         args.output_path,
     )

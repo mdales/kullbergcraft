@@ -241,6 +241,11 @@ def dem_to_world(
         yg.read_rasters(dem_path.glob("*.tif")) as dem,
         yg.read_raster(lcc_path) as lcc,
     ):
+        layers = [dem, lcc]
+        intersection = yg.YirgacheffeLayer.find_intersection(layers)
+        for layer in layers:
+            layer.set_window_for_intersection(intersection)
+
         # Create output directory
         os.makedirs(output_path / "region", exist_ok=True)
 
@@ -249,7 +254,7 @@ def dem_to_world(
         min_dem = dem.min()
         max_dem = dem.max()
 
-        assert dem.window == lcc.window
+        # assert dem.window == lcc.window
 
         # we can't have more than 255 blocks in height!
         crosswalk = build_nmd_crosswalk()

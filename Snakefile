@@ -58,11 +58,20 @@ rule make_land:
     script:
         "scripts/make_land.py"
 
+rule find_roads:
+    input:
+        template="data/kullberg_nmd_1m.tif",
+    output:
+        "data/kullberg_roads.geojson"
+    script:
+        "scripts/fetch_roads.py"
+
 rule make_refined_nmd:
     input:
         dem="data/stripped_dem_tiles",
         lcc="data/natural_nmd_1m.tif",
         lakes="data/lakes_1m.tif",
+        roads="data/kullberg_roads.geojson",
         cameras="data/cameras.gpkg",
     output:
         "data/refined_nmd_1m.tif"
