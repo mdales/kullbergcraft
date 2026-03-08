@@ -68,7 +68,6 @@ rule find_roads:
 
 rule make_refined_nmd:
     input:
-        dem="data/stripped_dem_tiles",
         lcc="data/natural_nmd_1m.tif",
         lakes="data/lakes_1m.tif",
         roads="data/kullberg_roads.geojson",
@@ -80,7 +79,8 @@ rule make_refined_nmd:
 
 rule make_world:
     input:
-        dem="data/stripped_dem_tiles",
+        dtm="data/stripped_dem_tiles",
+        dsm="data/DSM.tif",
         lcc="data/refined_nmd_1m.tif",
     output:
         directory("data/kullberg_world")

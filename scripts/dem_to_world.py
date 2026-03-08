@@ -1,4 +1,5 @@
 import argparse
+import math
 import os
 import random
 from pathlib import Path
@@ -180,41 +181,31 @@ def build_nmd_crosswalk():
         62: Block('minecraft', 'water'),
     }
 
-def make_tree_pine(chunk, x, y, z) -> None:
+def make_tree_pine(chunk, height, x, y, z) -> None:
     log = Block('minecraft', 'spruce_log')
     leaf = Block('minecraft', 'spruce_leaves', {'persistent': 'true'})
-    height = 5 + int(random.random() * 10)
+    # height = 5 + int(random.random() * 10)
     for i in range(height):
         chunk.set_block(log, x, y + i, z)
     chunk.set_block(leaf, x, y + height, z)
 
-def make_tree_spruce(chunk, x, y, z) -> None:
+def make_tree_spruce(chunk, height, x, y, z) -> None:
     log = Block('minecraft', 'spruce_log')
     leaf = Block('minecraft', 'spruce_leaves', {'persistent': 'true'})
-    height = 5 + int(random.random() * 5)
+    # height = 5 + int(random.random() * 5)
     for i in range(height):
         chunk.set_block(log, x, y + i, z)
     chunk.set_block(leaf, x, y + height, z)
 
-def make_tree_birch(chunk, x, y, z) -> None:
+def make_tree_birch(chunk, height, x, y, z) -> None:
     log = Block('minecraft', 'birch_log')
     leaf = Block('minecraft', 'birch_leaves', {'persistent': 'true'})
-    height = 5 + int(random.random() * 5)
+    # height = 5 + int(random.random() * 5)
     for i in range(height):
         chunk.set_block(log, x, y + i, z)
     chunk.set_block(leaf, x, y + height, z)
 
 def place_beacon(chunk, x, y, z):
-    """
-    Place a beacon with a 3x3 iron block pyramid base.
-
-    Args:
-        chunk: anvil chunk object
-        x: x coordinate within chunk (0-15)
-        y: y coordinate (beacon will be placed here, base at y-1)
-        z: z coordinate within chunk (0-15)
-    """
-    # Create blocks
     iron_block = Block('minecraft', 'iron_block')
     beacon = Block('minecraft', 'beacon')
 
@@ -233,15 +224,17 @@ def place_beacon(chunk, x, y, z):
     chunk.set_block(beacon, x, y, z)
 
 def dem_to_world(
-    dem_path: Path,
+    dtm_path: Path,
+    dsm_path: Path,
     lcc_path: Path,
     output_path: Path,
 ) -> None:
     with (
-        yg.read_rasters(dem_path.glob("*.tif")) as dem,
+        yg.read_rasters(dtm_path.glob("*.tif")) as dtm,
+        yg.read_raster(dsm_path) as dsm,
         yg.read_raster(lcc_path) as lcc,
     ):
-        layers = [dem, lcc]
+        layers = [dtm, dsm, lcc]
         intersection = yg.YirgacheffeLayer.find_intersection(layers)
         for layer in layers:
             layer.set_window_for_intersection(intersection)
@@ -251,8 +244,8 @@ def dem_to_world(
 
         create_level_dat(output_path / "level.dat", "kullberg", 0, 200, 0)
 
-        min_dem = dem.min()
-        max_dem = dem.max()
+        min_dem = dtm.min()
+        max_dem = dsm.max()
 
         # assert dem.window == lcc.window
 
@@ -265,8 +258,8 @@ def dem_to_world(
         dirt = Block('minecraft', 'dirt')
 
         # Calculate dimensions
-        width = dem.window.xsize
-        height = dem.window.ysize
+        width = dtm.window.xsize
+        height = dtm.window.ysize
         chunks_x = (width + 15) // 16
         chunks_z = (height + 15) // 16
 
@@ -276,8 +269,8 @@ def dem_to_world(
         regions = {}
 
         # Process chunk by chunk
-        for chunk_x in range(80):
-            for chunk_z in range(80):
+        for chunk_x in range(128):
+            for chunk_z in range(128):
                 # Determine which region this chunk belongs to
                 region_x = chunk_x // 32
                 region_z = chunk_z // 32
@@ -295,17 +288,22 @@ def dem_to_world(
 
                 # Fill the chunk with terrain
                 for local_x in range(16):
-                    world_x = chunk_x * 16 + local_x + 7500
+                    world_x = chunk_x * 16 + local_x + 7000
                     if world_x >= width:
                         continue
 
                     for local_z in range(16):
-                        world_z = chunk_z * 16 + local_z + 5500
+                        world_z = chunk_z * 16 + local_z + 5000
                         if world_z >= height:
                             continue
 
-                        elevation = dem.read_array(world_x, world_z, 1, 1)[0][0]
+                        elevation = dtm.read_array(world_x, world_z, 1, 1)[0][0]
                         block_height = min(int(5 + elevation - min_dem), 255)
+                        surface = dsm.read_array(world_x, world_z, 1, 1)[0][0]
+                        try:
+                            tree_height = math.ceil(surface - elevation)
+                        except ValueError:
+                            tree_height = 0
 
                         land_type = lcc.read_array(world_x, world_z, 1, 1)[0][0]
 
@@ -346,19 +344,19 @@ def dem_to_world(
                         rn = random.random()
                         if rn < 0.1:
                             if land_type in [111, 121]:
-                                make_tree_pine(chunk, local_x, y, local_z)
+                                make_tree_pine(chunk, tree_height, local_x, y, local_z)
                             elif land_type in [112, 122]:
-                                make_tree_spruce(chunk, local_x, y, local_z)
+                                make_tree_spruce(chunk, tree_height, local_x, y, local_z)
                             elif land_type in [113, 123]:
-                                make_tree_birch(chunk, local_x, y, local_z)
+                                make_tree_birch(chunk, tree_height, local_x, y, local_z)
                             elif land_type in [114, 115, 116, 116, 124, 125, 126, 127]:
                                 x = random.random()
                                 if x < 0.3:
-                                    make_tree_pine(chunk, local_x, y, local_z)
+                                    make_tree_pine(chunk, tree_height, local_x, y, local_z)
                                 elif x < 0.6:
-                                    make_tree_spruce(chunk, local_x, y, local_z)
+                                    make_tree_spruce(chunk, tree_height, local_x, y, local_z)
                                 else:
-                                    make_tree_birch(chunk, local_x, y, local_z)
+                                    make_tree_birch(chunk, tree_height, local_x, y, local_z)
                             elif land_type in [41]:
                                 plant_choice = random.choice([
                                     Block('minecraft', 'short_grass'),
@@ -386,6 +384,29 @@ def dem_to_world(
                         if land_type == 200:
                             place_beacon(chunk, local_x, y + 1, local_z)
 
+                        if not math.isnan(surface) and tree_height > 1:
+                            if tree_height == 1:
+                                leaf_type = 'short_grass'
+                            else:
+                                if land_type in [111, 121]:
+                                    leaf_type = 'spruce_leaves'
+                                elif land_type in [112, 122]:
+                                    leaf_type = 'spruce_leaves'
+                                elif land_type in [113, 123]:
+                                    leaf_type = 'birch_leaves'
+                                elif land_type in [114, 115, 116, 116, 124, 125, 126, 127]:
+                                    x = random.random()
+                                    if x < 0.3:
+                                        leaf_type = 'spruce_leaves'
+                                    elif x < 0.6:
+                                        leaf_type = 'spruce_leaves'
+                                    else:
+                                        leaf_type = 'birch_leaves'
+                                else:
+                                    leaf_type = 'glass'
+                            leaf_block = Block('minecraft', leaf_type, {'persistent': 'true'})
+                            chunk.set_block(leaf_block, local_x, y + tree_height, local_z)
+
                 # Add chunk to region
                 region.add_chunk(chunk)
 
@@ -401,18 +422,26 @@ def dem_to_world(
             print(f"  Saved region ({region_x}, {region_z})")
 
 @snakemake_compatible(mapping={
-    "dem_path": "input.dem",
+    "dtm_path": "input.dtm",
+    "dsm_path": "input.dsm",
     "lcc_path": "input.lcc",
     "output_dir_path": "output[0]",
 })
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--dem',
+        '--dtm',
         type=Path,
-        help='dem raster',
+        help='dtm raster',
         required=True,
-        dest='dem_path',
+        dest='dtm_path',
+    )
+    parser.add_argument(
+        '--dsm',
+        type=Path,
+        help='dsm raster',
+        required=True,
+        dest='dsm_path',
     )
     parser.add_argument(
         '--lcc',
@@ -430,7 +459,8 @@ def main() -> None:
     )
     args = parser.parse_args()
     dem_to_world(
-        args.dem_path,
+        args.dtm_path,
+        args.dsm_path,
         args.lcc_path,
         args.output_dir_path,
     )

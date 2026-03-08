@@ -5,7 +5,6 @@ import yirgacheffe as yg
 from snakemake_argparse_bridge import snakemake_compatible
 
 def refined_nmd(
-    dem_path: Path,
     lcc_path: Path,
     lakes_path: Path,
     roads_path: Path,
@@ -13,7 +12,6 @@ def refined_nmd(
     output_path: Path,
 ) -> None:
     with (
-        # yg.read_rasters(dem_path.glob("*.tif")) as dem,
         yg.read_raster(lcc_path) as lcc,
         yg.read_raster(lakes_path) as lakes,
         yg.read_shape_like(roads_path, lcc) as roads,
@@ -25,7 +23,6 @@ def refined_nmd(
         lcc_without_water_with_lakes_and_and_roads_cameras.to_geotiff(output_path)
 
 @snakemake_compatible(mapping={
-    "dem_path": "input.dem",
     "lcc_path": "input.lcc",
     "lakes_path": "input.lakes",
     "roads_path": "input.roads",
@@ -34,13 +31,6 @@ def refined_nmd(
 })
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--dem',
-        type=Path,
-        help='dem raster',
-        required=True,
-        dest='dem_path',
-    )
     parser.add_argument(
         '--lcc',
         type=Path,
@@ -78,7 +68,6 @@ def main() -> None:
     )
     args = parser.parse_args()
     refined_nmd(
-        args.dem_path,
         args.lcc_path,
         args.lakes_path,
         args.roads_path,
