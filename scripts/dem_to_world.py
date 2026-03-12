@@ -2,6 +2,7 @@ import argparse
 import math
 import os
 import random
+from functools import partial
 from pathlib import Path
 from sys import platlibdir
 
@@ -181,29 +182,17 @@ def build_nmd_crosswalk():
         62: Block('minecraft', 'water'),
     }
 
-def make_tree_pine(chunk, height, x, y, z) -> None:
-    log = Block('minecraft', 'spruce_log')
-    leaf = Block('minecraft', 'spruce_leaves', {'persistent': 'true'})
-    # height = 5 + int(random.random() * 10)
+def make_tree(log_style: str, leaf_style: str, chunk, height, x, y, z) -> None:
+    log = Block('minecraft', log_style)
+    leaf = Block('minecraft', leaf_style, {'persistent': 'true'})
     for i in range(height):
         chunk.set_block(log, x, y + i, z)
     chunk.set_block(leaf, x, y + height, z)
 
-def make_tree_spruce(chunk, height, x, y, z) -> None:
-    log = Block('minecraft', 'spruce_log')
-    leaf = Block('minecraft', 'spruce_leaves', {'persistent': 'true'})
-    # height = 5 + int(random.random() * 5)
-    for i in range(height):
-        chunk.set_block(log, x, y + i, z)
-    chunk.set_block(leaf, x, y + height, z)
-
-def make_tree_birch(chunk, height, x, y, z) -> None:
-    log = Block('minecraft', 'birch_log')
-    leaf = Block('minecraft', 'birch_leaves', {'persistent': 'true'})
-    # height = 5 + int(random.random() * 5)
-    for i in range(height):
-        chunk.set_block(log, x, y + i, z)
-    chunk.set_block(leaf, x, y + height, z)
+make_tree_pine = partial(make_tree, 'spruce_log', 'spruce_leaves')
+make_tree_spruce = partial(make_tree, 'spruce_log', 'spruce_leaves')
+make_tree_birch = partial(make_tree, 'birch_log', 'birch_leaves')
+make_tree_oak = partial(make_tree, 'oak_log', 'oak_leaves')
 
 def place_beacon(chunk, x, y, z):
     iron_block = Block('minecraft', 'iron_block')
@@ -365,7 +354,7 @@ def dem_to_world(
                                 chunk.set_block(plant_choice, local_x, y + 1, local_z)
                         elif rn < 0.3:
                             if land_type in [
-                              111, 121, 112, 122, 113, 123, 114, 115, 116, 116, 124, 125, 126, 127,
+                              111, 121, 112, 122, 113, 123, 114, 115, 116, 117, 124, 125, 126, 127,
                               3,
                             ]:
                                 plant_choice = random.choice([
@@ -394,7 +383,7 @@ def dem_to_world(
                                     leaf_type = 'spruce_leaves'
                                 elif land_type in [113, 123]:
                                     leaf_type = 'birch_leaves'
-                                elif land_type in [114, 115, 116, 116, 124, 125, 126, 127]:
+                                elif land_type in [114, 115, 116, 117, 118, 124, 125, 126, 127, 128]:
                                     x = random.random()
                                     if x < 0.3:
                                         leaf_type = 'spruce_leaves'
