@@ -167,7 +167,7 @@ def build_nmd_crosswalk():
         # wetland
         2: Block('minecraft', 'podzol'),
         # arable
-        3: Block('minecraft', 'grass_block'),
+        3: Block('minecraft', 'dirt'),
         # other open land
         4: Block('minecraft', 'grass_block'),
         41: Block('minecraft', 'grass_block'),
@@ -218,6 +218,7 @@ def dem_to_world(
     dsm_path: Path,
     tree_path: Path,
     lcc_path: Path,
+    wires_path: Path,
     output_path: Path,
 ) -> None:
     with (
@@ -225,6 +226,7 @@ def dem_to_world(
         yg.read_raster(dsm_path) as dsm,
         yg.read_raster(lcc_path) as lcc,
         yg.read_raster(tree_path) as trees,
+        yg.read_shape_like(wires_path, dsm) as wires,
     ):
         layers = [dtm, dsm, lcc, trees]
         intersection = yg.find_intersection(layers)
@@ -233,6 +235,7 @@ def dem_to_world(
         area_dsm   = dsm.as_area(intersection)
         area_trees = trees.as_area(intersection)
         area_lcc   = lcc.as_area(intersection)
+        area_wires = wires.as_area(intersection)
 
         # Create output directory
         os.makedirs(output_path / "region", exist_ok=True)
@@ -286,6 +289,7 @@ def dem_to_world(
                 surf_chunk = area_dsm.read_array(base_x, base_z, 16, 16)
                 tree_chunk = area_trees.read_array(base_x, base_z, 16, 16)
                 lcc_chunk = area_lcc.read_array(base_x, base_z, 16, 16)
+                wires_chunk = area_wires.read_array(base_x, base_z, 16, 16)
 
                 # Fill the chunk with terrain
                 for local_x in range(16):
@@ -302,6 +306,7 @@ def dem_to_world(
                         surface = surf_chunk[local_z, local_x]
                         is_tree = tree_chunk[local_z, local_x] > 0
                         land_type = lcc_chunk[local_z, local_x]
+                        is_wire = wires_chunk[local_z, local_x]
 
                         block_height = min(int(5 + elevation - min_dem), 255)
                         try:
@@ -341,7 +346,7 @@ def dem_to_world(
 
                                 chunk.set_block(block, local_x, y, local_z)
 
-                        if is_tree:
+                        if is_tree and not is_wire:
                             if land_type in [2, 42]:
                                 make_tree_pine(chunk, tree_height, local_x, y, local_z)
                             if land_type in [111, 121]:
@@ -386,6 +391,9 @@ def dem_to_world(
 #
 #                         if land_type == 200:
 #                             place_beacon(chunk, local_x, y + 1, local_z)
+                        if land_type == 3:
+                            block = Block('minecraft', 'wheat')
+                            chunk.set_block(block, local_x, y + 1, local_z)
 
                         if not math.isnan(surface) and tree_height > 1:
                             if land_type == 51:
@@ -393,7 +401,9 @@ def dem_to_world(
                                     chunk.set_block(Block('minecraft', 'bricks'), local_x, y + i, local_z)
                                 chunk.set_block(stone, local_x, y + tree_height, local_z)
                             else:
-                                if tree_height == 1:
+                                if is_wire:
+                                    leaf_type = 'glass'
+                                elif tree_height == 1:
                                     leaf_type = random.choice(['short_grass', 'fern'])
                                 else:
                                     if land_type in [2, 42]:
@@ -441,6 +451,7 @@ def dem_to_world(
     "dsm_path": "input.dsm",
     "tree_path": "input.trees",
     "lcc_path": "input.lcc",
+    "wires_path": "input.wires",
     "output_dir_path": "output[0]",
 })
 def main() -> None:
@@ -474,6 +485,13 @@ def main() -> None:
         dest='lcc_path',
     )
     parser.add_argument(
+        '--wires',
+        type=Path,
+        help='clipped wires gpkg',
+        required=True,
+        dest='wires_path',
+    )
+    parser.add_argument(
         '--output',
         type=Path,
         help='Path of directory for combined rasters raster',
@@ -486,6 +504,7 @@ def main() -> None:
         args.dsm_path,
         args.tree_path,
         args.lcc_path,
+        args.wires_path,
         args.output_dir_path,
     )
 

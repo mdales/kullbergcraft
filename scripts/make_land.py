@@ -24,7 +24,7 @@ def make_land(
     output_path: Path,
 ) -> None:
     with yg.read_raster(lcc_path) as lcc:
-        filtered_lcc = yg.where(lcc.isin((3, 6, 61, 62, 5, 51, 52, 53)), 0, lcc)
+        filtered_lcc = yg.where(lcc.isin((6, 61, 62, 5, 51, 52, 53)), 0, lcc)
         xsize, ysize = lcc.dimensions
         data = filtered_lcc.read_array(0, 0, xsize, ysize)
         res = generic_filter(data, mode_nonzero, size=3)

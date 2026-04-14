@@ -68,6 +68,15 @@ rule supersize_natural_land:
     script:
         "scripts/supersize_lcc.R"
 
+rule find_wires:
+    input:
+        template="data/kullberg_nmd_1m.tif",
+        wires="data/topografi/ledningar_sverige.gpkg",
+    output:
+        "data/ledningar_kullberg.gpkg",
+    script:
+        "scripts/wire_buffers.py"
+
 rule find_roads:
     input:
         template="data/kullberg_nmd_1m.tif",
@@ -106,6 +115,7 @@ rule make_world:
         dsm="data/DSM.tif",
         lcc="data/refined_nmd_1m.tif",
         trees="data/tree_tops_pitfree.tif",
+        wires="data/ledningar_kullberg.gpkg",
     output:
         directory("data/kullberg_world")
     script:

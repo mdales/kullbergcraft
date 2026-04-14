@@ -36,7 +36,7 @@ def fetch_roads(
 ) -> None:
     with yg.read_raster(template_raster_path) as template:
         template_area = template.area.reproject(yg.MapProjection("EPSG:4326", 0.001, -0.001))
-        template_crs = template.map_projection.name
+        template_crs = template.projection.name
 
     # (west, south, east, north)
     bbox = [template_area.left, template_area.bottom, template_area.right, template_area.top]
@@ -49,12 +49,12 @@ def fetch_roads(
     roads["highway"] = roads["highway"].apply(normalise_highway_tag)
     roads["buffer_dist"] = roads["highway"].map(WIDTH_MAP).fillna(DEFAULT_BUFFER)
 
-    roads = roads.to_crs(template.map_projection.name)
+    roads = roads.to_crs(template.projection.name)
     roads["geometry"] = roads.apply(
         lambda row: row.geometry.buffer(row.buffer_dist, cap_style="round", join_style="round"),
             axis=1,        )
 
-    road_polygons = gpd.GeoDataFrame(geometry=[roads.union_all()], crs=template.map_projection.name)
+    road_polygons = gpd.GeoDataFrame(geometry=[roads.union_all()], crs=template.projection.name)
     road_polygons.to_file(output_path, driver="GeoJSON")
 
 @snakemake_compatible(mapping={
