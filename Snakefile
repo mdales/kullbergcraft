@@ -54,9 +54,19 @@ rule make_land:
         dem="data/stripped_dem_tiles",
         lcc="data/kullberg_nmd_10m.tif"
     output:
-        "data/natural_nmd_1m.tif"
+        "data/natural_nmd_10m.tif"
     script:
         "scripts/make_land.py"
+
+rule supersize_natural_land:
+    input:
+        lcc="data/natural_nmd_10m.tif"
+    params:
+        smooth_method="chaikin"
+    output:
+        result="data/natural_nmd_1m.tif"
+    script:
+        "scripts/supersize_lcc.R"
 
 rule find_roads:
     input:
