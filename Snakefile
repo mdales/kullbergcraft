@@ -92,7 +92,6 @@ rule make_refined_nmd:
         lakes="data/lakes_from_dsm.tif",
         roads="data/kullberg_roads.geojson",
         buildings="data/topografi/byggnadsverk_sverige.gpkg",
-        cameras="data/cameras.gpkg",
     output:
         "data/refined_nmd_1m.tif"
     script:
@@ -116,6 +115,7 @@ rule make_world:
         lcc="data/refined_nmd_1m.tif",
         trees="data/tree_tops_pitfree.tif",
         wires="data/ledningar_kullberg.gpkg",
+        cameras="data/cameras.gpkg",
     output:
         directory("data/kullberg_world")
     script:

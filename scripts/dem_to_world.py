@@ -9,6 +9,8 @@ from sys import platlibdir
 from anvil import EmptyRegion, EmptyChunk, Block, Biome
 import nbtlib
 from nbtlib import tag
+from nbt import nbt
+import geopandas as gpd
 import numpy as np
 from scripts import create_level
 from snakemake_argparse_bridge import snakemake_compatible
@@ -219,6 +221,7 @@ def dem_to_world(
     tree_path: Path,
     lcc_path: Path,
     wires_path: Path,
+    cameras_path: Path,
     output_path: Path,
 ) -> None:
     with (
@@ -240,9 +243,10 @@ def dem_to_world(
         # Create output directory
         os.makedirs(output_path / "region", exist_ok=True)
 
-        create_level_dat(output_path / "level.dat", "kullberg", 0, 200, 0)
+        create_level_dat(output_path / "level.dat", "kullberg", 1030, 43, 1080)
 
         min_dem = dtm.min()
+        print(min_dem)
 
         # assert dem.window == lcc.window
 
@@ -293,6 +297,7 @@ def dem_to_world(
 
                 # Fill the chunk with terrain
                 for local_x in range(16):
+                # if 0:
                     world_x = chunk_x * 16 + local_x + 7000
                     if world_x >= width:
                         continue
@@ -335,7 +340,7 @@ def dem_to_world(
 
                                 chunk.set_block(block, local_x, y, local_z)
                         else:
-                            chunk.set_biome(Biome('minecraft', 'snowy_taiga'), local_x, local_z)
+                            chunk.set_biome(Biome('minecraft', 'taiga'), local_x, local_z)
                             for y in range(1, min(block_height, 320)):  # Minecraft height limit
                                 if y < block_height - 4:
                                     block = stone
@@ -348,27 +353,27 @@ def dem_to_world(
 
                         if is_tree and not is_wire:
                             if land_type in [2, 42]:
-                                make_tree_pine(chunk, tree_height, local_x, y, local_z)
+                                make_tree_pine(chunk, tree_height, local_x, block_height, local_z)
                             if land_type in [111, 121]:
-                                make_tree_pine(chunk, tree_height, local_x, y, local_z)
+                                make_tree_pine(chunk, tree_height, local_x, block_height, local_z)
                             elif land_type in [112, 122]:
-                                make_tree_spruce(chunk, tree_height, local_x, y, local_z)
+                                make_tree_spruce(chunk, tree_height, local_x, block_height, local_z)
                             elif land_type in [113, 123]:
-                                make_tree_birch(chunk, tree_height, local_x, y, local_z)
+                                make_tree_birch(chunk, tree_height, local_x, block_height, local_z)
                             elif land_type in [114, 115, 116, 116, 124, 125, 126, 127]:
                                 x = random.random()
                                 if x < 0.3:
-                                    make_tree_pine(chunk, tree_height, local_x, y, local_z)
+                                    make_tree_pine(chunk, tree_height, local_x, block_height, local_z)
                                 elif x < 0.6:
-                                    make_tree_spruce(chunk, tree_height, local_x, y, local_z)
+                                    make_tree_spruce(chunk, tree_height, local_x, block_height, local_z)
                                 else:
-                                    make_tree_birch(chunk, tree_height, local_x, y, local_z)
+                                    make_tree_birch(chunk, tree_height, local_x, block_height, local_z)
                             elif land_type in [41]:
                                 plant_choice = random.choice([
                                     Block('minecraft', 'short_grass'),
                                     Block('minecraft', 'fern'),
                                 ])
-                                chunk.set_block(plant_choice, local_x, y + 1, local_z)
+                                chunk.set_block(plant_choice, local_x, block_height + 1, local_z)
                         else:
                             rn = random.random()
                             if rn < 0.3:
@@ -380,26 +385,26 @@ def dem_to_world(
                                         Block('minecraft', 'short_grass'),
                                         Block('minecraft', 'fern'),
                                     ])
-                                    chunk.set_block(plant_choice, local_x, y + 1, local_z)
+                                    chunk.set_block(plant_choice, local_x, block_height, local_z)
                             elif rn < 0.5:
                                 if land_type in [4, 42]:
                                     plant_choice = random.choice([
                                         Block('minecraft', 'short_grass'),
                                         Block('minecraft', 'fern'),
                                     ])
-                                    chunk.set_block(plant_choice, local_x, y + 1, local_z)
+                                    chunk.set_block(plant_choice, local_x, block_height, local_z)
 #
 #                         if land_type == 200:
 #                             place_beacon(chunk, local_x, y + 1, local_z)
-                        if land_type == 3:
-                            block = Block('minecraft', 'wheat')
-                            chunk.set_block(block, local_x, y + 1, local_z)
+                        # if land_type == 3:
+                        #     block = Block('minecraft', 'wheat')
+                        #     chunk.set_block(block, local_x, block_height, local_z)
 
                         if not math.isnan(surface) and tree_height > 1:
                             if land_type == 51:
                                 for i in range(tree_height):
-                                    chunk.set_block(Block('minecraft', 'bricks'), local_x, y + i, local_z)
-                                chunk.set_block(stone, local_x, y + tree_height, local_z)
+                                    chunk.set_block(Block('minecraft', 'bricks'), local_x, block_height + i, local_z)
+                                chunk.set_block(stone, local_x, block_height + tree_height, local_z)
                             else:
                                 if is_wire:
                                     leaf_type = 'glass'
@@ -430,7 +435,7 @@ def dem_to_world(
                                         else:
                                             leaf_type = 'glass'
                                 leaf_block = Block('minecraft', leaf_type, {'persistent': 'true'})
-                                chunk.set_block(leaf_block, local_x, y + tree_height, local_z)
+                                chunk.set_block(leaf_block, local_x, block_height + tree_height, local_z)
 
                 # Add chunk to region
                 region.add_chunk(chunk)
@@ -438,7 +443,71 @@ def dem_to_world(
                 # Progress
                 # if chunk_x % 32 == 0 and chunk_z == 0:
                 progress = chunk_x / chunks_x * 100
-                print(f"  Progress: {progress:.1f}%")
+                # print(f"  Progress: {progress:.1f}%")
+
+        # Add beacon for cameras
+        def set_block(x, y, z, block):
+            chunk_x = int(x // 16)
+            chunk_z = int(z // 16)
+            local_x = int(x - (chunk_x * 16))
+            local_z = int(z - (chunk_z * 16))
+            region_x = chunk_x // 32
+            region_z = chunk_z // 32
+            region_key = (region_x, region_z)
+            region = regions[region_key]
+            chunk = region.get_chunk(chunk_x, chunk_z)
+            chunk.set_block(block, local_x, y, local_z)
+
+
+        pyramid_block = Block('minecraft', 'diamond_block')
+        beacon = Block('minecraft', 'beacon')
+        cameras = gpd.read_file(cameras_path)
+        for point in cameras.geometry:
+            print(point)
+            x = int((point.x - intersection.left) - 7000)
+            z = int((intersection.top - point.y) - 5000)
+
+            chunk_x = int(x // 16)
+            chunk_z = int(z // 16)
+            local_x = int(x - (chunk_x * 16))
+            local_z = int(z - (chunk_z * 16))
+            base_x = chunk_x * 16 + 7000
+            base_z = chunk_z * 16 + 5000
+            elev_chunk = area_dtm.read_array(base_x, base_z, 16, 16)
+            elevation = elev_chunk[local_z, local_x]
+            print(elevation)
+            print(min_dem)
+
+            block_height = min(int(5 + elevation - min_dem), 255) - 1
+            print(block_height)
+
+
+            set_block(x, block_height, z, beacon)
+
+            # Set beacon block entity with Levels pre-seeded
+            chunk_x = int(x // 16)
+            chunk_z = int(z // 16)
+            region_key = (chunk_x // 32, chunk_z // 32)
+            chunk = regions[region_key].get_chunk(chunk_x, chunk_z)
+
+            beacon_te = nbt.TAG_Compound()
+            beacon_te.tags.extend([
+                nbt.TAG_String(name='id', value='minecraft:beacon'),
+                nbt.TAG_Int(name='x', value=x),
+                nbt.TAG_Int(name='y', value=block_height),
+                nbt.TAG_Int(name='z', value=z),
+                nbt.TAG_Int(name='Levels', value=1),
+                nbt.TAG_Compound(name='components'),
+            ])
+            chunk.add_tile_entity(beacon_te)
+
+            # Place 3x3 base at y-1 (underground)
+            for dx in [-1, 0, 1]:
+                xpos = x + dx
+                for dz in [-1, 0, 1]:
+                    zpos = z + dz
+                    set_block(xpos, block_height - 1, zpos, pyramid_block)
+
 
         # Save all regions
         print("Saving regions...")
@@ -452,6 +521,7 @@ def dem_to_world(
     "tree_path": "input.trees",
     "lcc_path": "input.lcc",
     "wires_path": "input.wires",
+    "cameras_path": "input.cameras",
     "output_dir_path": "output[0]",
 })
 def main() -> None:
@@ -492,6 +562,13 @@ def main() -> None:
         dest='wires_path',
     )
     parser.add_argument(
+        '--cameras',
+        type=Path,
+        help='camera locations gpkg',
+        required=True,
+        dest='cameras_path',
+    )
+    parser.add_argument(
         '--output',
         type=Path,
         help='Path of directory for combined rasters raster',
@@ -505,6 +582,7 @@ def main() -> None:
         args.tree_path,
         args.lcc_path,
         args.wires_path,
+        args.cameras_path,
         args.output_dir_path,
     )
 

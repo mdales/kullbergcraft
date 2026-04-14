@@ -17,7 +17,6 @@ def refined_nmd(
     lakes_path: Path,
     roads_path: Path,
     buildings_path: Path,
-    cameras_path: Path,
     output_path: Path,
 ) -> None:
     with (
@@ -26,7 +25,6 @@ def refined_nmd(
         yg.read_raster(lakes_path) as lakes,
         yg.read_shape_like(roads_path, lcc) as roads,
         yg.read_shape_like(buildings_path, lcc) as buildings,
-        yg.read_shape_like(cameras_path, lcc) as cameras,
     ):
         dtm_min = dtm.min()
         quantised_dtm = (dtm - dtm_min).floor()
@@ -40,8 +38,7 @@ def refined_nmd(
         lcc_without_water_with_lakes = yg.where(lakes_n == 0, lcc, 61)
         lcc_without_water_with_lakes_and_roads = yg.where(roads == 0, lcc_without_water_with_lakes, 53)
         lcc_without_water_with_lakes_and_roads_and_buildings = yg.where(buildings == 0, lcc_without_water_with_lakes_and_roads, 51)
-        lcc_without_water_with_lakes_and_and_roads_cameras = yg.where(cameras != 0, 200, lcc_without_water_with_lakes_and_roads_and_buildings)
-        lcc_without_water_with_lakes_and_and_roads_cameras.as_area(lcc).to_geotiff(output_path, parallelism=True)
+        lcc_without_water_with_lakes_and_roads_and_buildings.as_area(lcc).to_geotiff(output_path, parallelism=True)
 
 @snakemake_compatible(mapping={
     "lcc_path": "input.lcc",
@@ -49,7 +46,6 @@ def refined_nmd(
     "lakes_path": "input.lakes",
     "roads_path": "input.roads",
     "buildings_path": "input.buildings",
-    "cameras_path": "input.cameras",
     "output_path": "output[0]",
 })
 def main() -> None:
@@ -90,13 +86,6 @@ def main() -> None:
         dest="buildings_path",
     )
     parser.add_argument(
-        '--cameras',
-        type=Path,
-        help='Cameras point file',
-        required=True,
-        dest='cameras_path',
-    )
-    parser.add_argument(
         '--output',
         type=Path,
         help='Path of directory for combined rasters raster',
@@ -110,7 +99,6 @@ def main() -> None:
         args.lakes_path,
         args.roads_path,
         args.buildings_path,
-        args.cameras_path,
         args.output_path,
     )
 
