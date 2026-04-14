@@ -42,12 +42,12 @@ rule align_nmd_with_dem:
 
 rule find_lakes:
     input:
-        dem="data/stripped_dem_tiles",
+        dem="data/dsm2.tif",
         lcc="data/kullberg_nmd_1m.tif"
     output:
-        "data/lakes_1m.tif"
+        "data/lakes_from_dsm.tif"
     script:
-        "scripts/find_lakes.py"
+        "scripts/find_lakes_dsm.py"
 
 rule make_land:
     input:
@@ -68,20 +68,34 @@ rule find_roads:
 
 rule make_refined_nmd:
     input:
+        dtm="data/dem_tiles",
         lcc="data/natural_nmd_1m.tif",
-        lakes="data/lakes_1m.tif",
+        lakes="data/lakes_from_dsm.tif",
         roads="data/kullberg_roads.geojson",
+        buildings="data/topografi/byggnadsverk_sverige.gpkg",
         cameras="data/cameras.gpkg",
     output:
         "data/refined_nmd_1m.tif"
     script:
         "scripts/refined_nmd_1m.py"
 
+rule make_dsm:
+    input:
+        laz_directory="data/laz_files"
+    output:
+        "data/dsm2.tif"
+    script:
+        "scripts/points_to_dsm.py"
+
+# rule trees_to_tiff:
+
+
 rule make_world:
     input:
         dtm="data/stripped_dem_tiles",
         dsm="data/DSM.tif",
         lcc="data/refined_nmd_1m.tif",
+        trees="data/tree_tops_pitfree.tif",
     output:
         directory("data/kullberg_world")
     script:

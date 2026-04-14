@@ -9,6 +9,7 @@ from sys import platlibdir
 from anvil import EmptyRegion, EmptyChunk, Block, Biome
 import nbtlib
 from nbtlib import tag
+import numpy as np
 from scripts import create_level
 from snakemake_argparse_bridge import snakemake_compatible
 import yirgacheffe as yg
@@ -215,6 +216,7 @@ def place_beacon(chunk, x, y, z):
 def dem_to_world(
     dtm_path: Path,
     dsm_path: Path,
+    tree_path: Path,
     lcc_path: Path,
     output_path: Path,
 ) -> None:
@@ -222,11 +224,15 @@ def dem_to_world(
         yg.read_rasters(dtm_path.glob("*.tif")) as dtm,
         yg.read_raster(dsm_path) as dsm,
         yg.read_raster(lcc_path) as lcc,
+        yg.read_raster(tree_path) as trees,
     ):
-        layers = [dtm, dsm, lcc]
-        intersection = yg.YirgacheffeLayer.find_intersection(layers)
-        for layer in layers:
-            layer.set_window_for_intersection(intersection)
+        layers = [dtm, dsm, lcc, trees]
+        intersection = yg.find_intersection(layers)
+
+        area_dtm   = dtm.as_area(intersection)
+        area_dsm   = dsm.as_area(intersection)
+        area_trees = trees.as_area(intersection)
+        area_lcc   = lcc.as_area(intersection)
 
         # Create output directory
         os.makedirs(output_path / "region", exist_ok=True)
@@ -234,7 +240,6 @@ def dem_to_world(
         create_level_dat(output_path / "level.dat", "kullberg", 0, 200, 0)
 
         min_dem = dtm.min()
-        max_dem = dsm.max()
 
         # assert dem.window == lcc.window
 
@@ -247,8 +252,7 @@ def dem_to_world(
         dirt = Block('minecraft', 'dirt')
 
         # Calculate dimensions
-        width = dtm.window.xsize
-        height = dtm.window.ysize
+        width, height = dtm.dimensions
         chunks_x = (width + 15) // 16
         chunks_z = (height + 15) // 16
 
@@ -275,6 +279,14 @@ def dem_to_world(
                 # Create the chunk
                 chunk = EmptyChunk(chunk_x, chunk_z)
 
+                base_x = chunk_x * 16 + 7000
+                base_z = chunk_z * 16 + 5000
+
+                elev_chunk = area_dtm.read_array(base_x, base_z, 16, 16)
+                surf_chunk = area_dsm.read_array(base_x, base_z, 16, 16)
+                tree_chunk = area_trees.read_array(base_x, base_z, 16, 16)
+                lcc_chunk = area_lcc.read_array(base_x, base_z, 16, 16)
+
                 # Fill the chunk with terrain
                 for local_x in range(16):
                     world_x = chunk_x * 16 + local_x + 7000
@@ -286,15 +298,16 @@ def dem_to_world(
                         if world_z >= height:
                             continue
 
-                        elevation = dtm.read_array(world_x, world_z, 1, 1)[0][0]
+                        elevation = elev_chunk[local_z, local_x]
+                        surface = surf_chunk[local_z, local_x]
+                        is_tree = tree_chunk[local_z, local_x] > 0
+                        land_type = lcc_chunk[local_z, local_x]
+
                         block_height = min(int(5 + elevation - min_dem), 255)
-                        surface = dsm.read_array(world_x, world_z, 1, 1)[0][0]
                         try:
                             tree_height = math.ceil(surface - elevation)
                         except ValueError:
                             tree_height = 0
-
-                        land_type = lcc.read_array(world_x, world_z, 1, 1)[0][0]
 
                         # Place bedrock at bottom
                         chunk.set_block(bedrock, local_x, 0, local_z)
@@ -305,8 +318,6 @@ def dem_to_world(
                             print(f"{land_type} not in crosswalk")
                             target = Block('minecraft', 'cobblestone')
 
-
-                        # Fill from bedrock to surface
                         if target.id == 'water':
                             chunk.set_biome(Biome('minecraft', 'frozen_river'), local_x, local_z)
                             for y in range(1, min(block_height, 320)):
@@ -330,8 +341,9 @@ def dem_to_world(
 
                                 chunk.set_block(block, local_x, y, local_z)
 
-                        rn = random.random()
-                        if rn < 0.1:
+                        if is_tree:
+                            if land_type in [2, 42]:
+                                make_tree_pine(chunk, tree_height, local_x, y, local_z)
                             if land_type in [111, 121]:
                                 make_tree_pine(chunk, tree_height, local_x, y, local_z)
                             elif land_type in [112, 122]:
@@ -352,57 +364,71 @@ def dem_to_world(
                                     Block('minecraft', 'fern'),
                                 ])
                                 chunk.set_block(plant_choice, local_x, y + 1, local_z)
-                        elif rn < 0.3:
-                            if land_type in [
-                              111, 121, 112, 122, 113, 123, 114, 115, 116, 117, 124, 125, 126, 127,
-                              3,
-                            ]:
-                                plant_choice = random.choice([
-                                    Block('minecraft', 'short_grass'),
-                                    Block('minecraft', 'fern'),
-                                ])
-                                chunk.set_block(plant_choice, local_x, y + 1, local_z)
-                        elif rn < 0.5:
-                            if land_type in [4, 42]:
-                                plant_choice = random.choice([
-                                    Block('minecraft', 'short_grass'),
-                                    Block('minecraft', 'fern'),
-                                ])
-                                chunk.set_block(plant_choice, local_x, y + 1, local_z)
-
-                        if land_type == 200:
-                            place_beacon(chunk, local_x, y + 1, local_z)
+                        else:
+                            rn = random.random()
+                            if rn < 0.3:
+                                if land_type in [
+                                111, 121, 112, 122, 113, 123, 114, 115, 116, 117, 124, 125, 126, 127,
+                                3,
+                                ]:
+                                    plant_choice = random.choice([
+                                        Block('minecraft', 'short_grass'),
+                                        Block('minecraft', 'fern'),
+                                    ])
+                                    chunk.set_block(plant_choice, local_x, y + 1, local_z)
+                            elif rn < 0.5:
+                                if land_type in [4, 42]:
+                                    plant_choice = random.choice([
+                                        Block('minecraft', 'short_grass'),
+                                        Block('minecraft', 'fern'),
+                                    ])
+                                    chunk.set_block(plant_choice, local_x, y + 1, local_z)
+#
+#                         if land_type == 200:
+#                             place_beacon(chunk, local_x, y + 1, local_z)
 
                         if not math.isnan(surface) and tree_height > 1:
-                            if tree_height == 1:
-                                leaf_type = 'short_grass'
+                            if land_type == 51:
+                                for i in range(tree_height):
+                                    chunk.set_block(Block('minecraft', 'bricks'), local_x, y + i, local_z)
+                                chunk.set_block(stone, local_x, y + tree_height, local_z)
                             else:
-                                if land_type in [111, 121]:
-                                    leaf_type = 'spruce_leaves'
-                                elif land_type in [112, 122]:
-                                    leaf_type = 'spruce_leaves'
-                                elif land_type in [113, 123]:
-                                    leaf_type = 'birch_leaves'
-                                elif land_type in [114, 115, 116, 117, 118, 124, 125, 126, 127, 128]:
-                                    x = random.random()
-                                    if x < 0.3:
-                                        leaf_type = 'spruce_leaves'
-                                    elif x < 0.6:
-                                        leaf_type = 'spruce_leaves'
-                                    else:
-                                        leaf_type = 'birch_leaves'
+                                if tree_height == 1:
+                                    leaf_type = random.choice(['short_grass', 'fern'])
                                 else:
-                                    leaf_type = 'glass'
-                            leaf_block = Block('minecraft', leaf_type, {'persistent': 'true'})
-                            chunk.set_block(leaf_block, local_x, y + tree_height, local_z)
+                                    if land_type in [2, 42]:
+                                        leaf_type = 'spruce_leaves'
+                                    elif land_type in [111, 121]:
+                                        leaf_type = 'spruce_leaves'
+                                    elif land_type in [112, 122]:
+                                        leaf_type = 'spruce_leaves'
+                                    elif land_type in [113, 123]:
+                                        leaf_type = 'birch_leaves'
+                                    elif land_type in [114, 115, 116, 117, 118, 124, 125, 126, 127, 128]:
+                                        x = random.random()
+                                        if x < 0.3:
+                                            leaf_type = 'spruce_leaves'
+                                        elif x < 0.6:
+                                            leaf_type = 'spruce_leaves'
+                                        else:
+                                            leaf_type = 'birch_leaves'
+                                    else:
+                                        # if we're here, and we lack info, then check the nearby pixels for a forest class
+                                        local_lcc = set(np.unique(lcc.read_array(world_x - 10, world_z - 10, 21, 21)))
+                                        if set([111, 112, 113, 114, 115, 116, 117, 118, 121, 122, 123, 124, 125, 126, 127, 128]) & local_lcc:
+                                            leaf_type = 'spruce_leaves'
+                                        else:
+                                            leaf_type = 'glass'
+                                leaf_block = Block('minecraft', leaf_type, {'persistent': 'true'})
+                                chunk.set_block(leaf_block, local_x, y + tree_height, local_z)
 
                 # Add chunk to region
                 region.add_chunk(chunk)
 
                 # Progress
-                if chunk_x % 32 == 0 and chunk_z == 0:
-                    progress = chunk_x / chunks_x * 100
-                    print(f"  Progress: {progress:.1f}%")
+                # if chunk_x % 32 == 0 and chunk_z == 0:
+                progress = chunk_x / chunks_x * 100
+                print(f"  Progress: {progress:.1f}%")
 
         # Save all regions
         print("Saving regions...")
@@ -413,6 +439,7 @@ def dem_to_world(
 @snakemake_compatible(mapping={
     "dtm_path": "input.dtm",
     "dsm_path": "input.dsm",
+    "tree_path": "input.trees",
     "lcc_path": "input.lcc",
     "output_dir_path": "output[0]",
 })
@@ -433,6 +460,13 @@ def main() -> None:
         dest='dsm_path',
     )
     parser.add_argument(
+        '--trees',
+        type=Path,
+        help="Tree points GPKG",
+        required=True,
+        dest='tree_path',
+    )
+    parser.add_argument(
         '--lcc',
         type=Path,
         help='LCC raster',
@@ -450,6 +484,7 @@ def main() -> None:
     dem_to_world(
         args.dtm_path,
         args.dsm_path,
+        args.tree_path,
         args.lcc_path,
         args.output_dir_path,
     )
