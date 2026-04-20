@@ -8,6 +8,7 @@ from sys import platlibdir
 
 from anvil import EmptyRegion, EmptyChunk, Block, Biome
 import nbtlib
+from anvil.errors import OutOfBoundsCoordinates
 from nbtlib import tag
 from nbt import nbt
 import geopandas as gpd
@@ -188,32 +189,17 @@ def build_nmd_crosswalk():
 def make_tree(log_style: str, leaf_style: str, chunk, height, x, y, z) -> None:
     log = Block('minecraft', log_style)
     leaf = Block('minecraft', leaf_style, {'persistent': 'true'})
-    for i in range(height):
-        chunk.set_block(log, x, y + i, z)
-    chunk.set_block(leaf, x, y + height, z)
+    try:
+        for i in range(height):
+            chunk.set_block(log, x, y + i, z)
+        chunk.set_block(leaf, x, y + height, z)
+    except OutOfBoundsCoordinates:
+        pass
 
 make_tree_pine = partial(make_tree, 'spruce_log', 'spruce_leaves')
 make_tree_spruce = partial(make_tree, 'spruce_log', 'spruce_leaves')
 make_tree_birch = partial(make_tree, 'birch_log', 'birch_leaves')
 make_tree_oak = partial(make_tree, 'oak_log', 'oak_leaves')
-
-def place_beacon(chunk, x, y, z):
-    iron_block = Block('minecraft', 'iron_block')
-    beacon = Block('minecraft', 'beacon')
-
-    # Place 3x3 base at y-1 (underground)
-    for dx in [-1, 0, 1]:
-        xpos = x + dx
-        if xpos < 0 or xpos > 15:
-            continue
-        for dz in [-1, 0, 1]:
-            zpos = z + dz
-            if zpos < 0 or zpos > 15:
-                continue
-            chunk.set_block(iron_block, xpos, y - 1, zpos)
-
-    # Place beacon on top (visible at ground level)
-    chunk.set_block(beacon, x, y, z)
 
 def dem_to_world(
     dtm_path: Path,
@@ -269,8 +255,8 @@ def dem_to_world(
         regions = {}
 
         # Process chunk by chunk
-        for chunk_x in range(128):
-            for chunk_z in range(128):
+        for chunk_x in range(chunks_x):
+            for chunk_z in range(chunks_z):
                 # Determine which region this chunk belongs to
                 region_x = chunk_x // 32
                 region_z = chunk_z // 32
@@ -286,8 +272,8 @@ def dem_to_world(
                 # Create the chunk
                 chunk = EmptyChunk(chunk_x, chunk_z)
 
-                base_x = chunk_x * 16 + 7000
-                base_z = chunk_z * 16 + 5000
+                base_x = chunk_x * 16 #+ 7000
+                base_z = chunk_z * 16 #+ 5000
 
                 elev_chunk = area_dtm.read_array(base_x, base_z, 16, 16)
                 surf_chunk = area_dsm.read_array(base_x, base_z, 16, 16)
@@ -298,12 +284,12 @@ def dem_to_world(
                 # Fill the chunk with terrain
                 for local_x in range(16):
                 # if 0:
-                    world_x = chunk_x * 16 + local_x + 7000
+                    world_x = chunk_x * 16 + local_x #+ 7000
                     if world_x >= width:
                         continue
 
                     for local_z in range(16):
-                        world_z = chunk_z * 16 + local_z + 5000
+                        world_z = chunk_z * 16 + local_z #+ 5000
                         if world_z >= height:
                             continue
 
@@ -330,7 +316,7 @@ def dem_to_world(
 
                         if target.id == 'water':
                             chunk.set_biome(Biome('minecraft', 'frozen_river'), local_x, local_z)
-                            for y in range(1, min(block_height, 320)):
+                            for y in range(1, min(block_height, 255)):
                                 if y < block_height - 4:
                                     block = stone
                                 elif y < block_height - 1:
@@ -341,7 +327,7 @@ def dem_to_world(
                                 chunk.set_block(block, local_x, y, local_z)
                         else:
                             chunk.set_biome(Biome('minecraft', 'taiga'), local_x, local_z)
-                            for y in range(1, min(block_height, 320)):  # Minecraft height limit
+                            for y in range(1, min(block_height, 255)):  # Minecraft height limit
                                 if y < block_height - 4:
                                     block = stone
                                 elif y < block_height - 1:
@@ -373,7 +359,10 @@ def dem_to_world(
                                     Block('minecraft', 'short_grass'),
                                     Block('minecraft', 'fern'),
                                 ])
-                                chunk.set_block(plant_choice, local_x, block_height + 1, local_z)
+                                try:
+                                    chunk.set_block(plant_choice, local_x, block_height + 1, local_z)
+                                except OutOfBoundsCoordinates:
+                                    pass
                         else:
                             rn = random.random()
                             if rn < 0.3:
@@ -385,14 +374,20 @@ def dem_to_world(
                                         Block('minecraft', 'short_grass'),
                                         Block('minecraft', 'fern'),
                                     ])
-                                    chunk.set_block(plant_choice, local_x, block_height, local_z)
+                                    try:
+                                        chunk.set_block(plant_choice, local_x, block_height, local_z)
+                                    except OutOfBoundsCoordinates:
+                                        pass
                             elif rn < 0.5:
                                 if land_type in [4, 42]:
                                     plant_choice = random.choice([
                                         Block('minecraft', 'short_grass'),
                                         Block('minecraft', 'fern'),
                                     ])
-                                    chunk.set_block(plant_choice, local_x, block_height, local_z)
+                                    try:
+                                        chunk.set_block(plant_choice, local_x, block_height, local_z)
+                                    except OutOfBoundsCoordinates:
+                                        pass
 #
 #                         if land_type == 200:
 #                             place_beacon(chunk, local_x, y + 1, local_z)
@@ -435,7 +430,10 @@ def dem_to_world(
                                         else:
                                             leaf_type = 'glass'
                                 leaf_block = Block('minecraft', leaf_type, {'persistent': 'true'})
-                                chunk.set_block(leaf_block, local_x, block_height + tree_height, local_z)
+                                try:
+                                    chunk.set_block(leaf_block, local_x, block_height + tree_height, local_z)
+                                except OutOfBoundsCoordinates:
+                                    pass
 
                 # Add chunk to region
                 region.add_chunk(chunk)
@@ -464,15 +462,15 @@ def dem_to_world(
         cameras = gpd.read_file(cameras_path)
         for point in cameras.geometry:
             print(point)
-            x = int((point.x - intersection.left) - 7000)
-            z = int((intersection.top - point.y) - 5000)
+            x = int((point.x - intersection.left) - 000)
+            z = int((intersection.top - point.y) - 000)
 
             chunk_x = int(x // 16)
             chunk_z = int(z // 16)
             local_x = int(x - (chunk_x * 16))
             local_z = int(z - (chunk_z * 16))
-            base_x = chunk_x * 16 + 7000
-            base_z = chunk_z * 16 + 5000
+            base_x = chunk_x * 16 + 000
+            base_z = chunk_z * 16 + 000
             elev_chunk = area_dtm.read_array(base_x, base_z, 16, 16)
             elevation = elev_chunk[local_z, local_x]
             print(elevation)
