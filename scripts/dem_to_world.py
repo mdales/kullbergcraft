@@ -42,6 +42,10 @@ def create_level_dat(
             'WasModded': tag.Byte(0),
             'allowCommands': tag.Byte(1),  # Enable commands
 
+            'SpawnX': tag.Int(spawn_x),
+            'SpawnY': tag.Int(spawn_y),
+            'SpawnZ': tag.Int(spawn_z),
+
             # Time
             'Time': tag.Long(0),
             'DayTime': tag.Long(0),
@@ -229,7 +233,7 @@ def dem_to_world(
         # Create output directory
         os.makedirs(output_path / "region", exist_ok=True)
 
-        create_level_dat(output_path / "level.dat", "kullberg", 1030, 43, 1080)
+        create_level_dat(output_path / "level.dat", "kullberg", 8035, 45, 6084)
 
         min_dem = dtm.min()
         print(min_dem)
